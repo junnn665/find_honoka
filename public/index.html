@@ -1119,14 +1119,7 @@ const Online = {
   mountRound(r, start) {
     this.mounted = r;
     Stage.mount(this.stageFor(r), () => NET.now() - start, (i, el) => this.tap(i, r, el));
-    // 前のラウンドで確保した人が、ほかの人（チーム戦なら相手チーム）を妨害する
-    const pw = r > 0 && this.wins()['r' + (r - 1)];
-    const left = start + JAM_MS - NET.now();
-    if (pw && pw.pid && pw.pid !== PID && !(this.isTeam() && this.teamOf(pw.pid) === this.teamOf(PID)) && left > 300) {
-      const type = JAMS[((this.room.seed >>> 0) + r) % JAMS.length];
-      const who = (this.room.players && this.room.players[pw.pid] && this.room.players[pw.pid].name) || '？';
-      Jam.apply(type, left); toast(`${who} の妨害！ ${JAM_TEXT[type]}`);
-    }
+    Jam.clear(); // 対戦の妨害はなし
   },
   tap(i, r, el) {
     if (NET.now() < this.lockUntil) return;
