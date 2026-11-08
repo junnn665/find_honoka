@@ -1,0 +1,9 @@
+// Cloudflare Workers の設定：public フォルダだけを公開する（README や tools は公開しない）
+{
+  "name": "find-honoka",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application"
+  }
+}

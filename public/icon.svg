@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs><clipPath id="c"><rect width="512" height="512" rx="112"/></clipPath></defs>
+  <g clip-path="url(#c)">
+    <rect width="512" height="512" fill="#13205A"/>
+    <g transform="rotate(-4 256 256)">
+      <rect x="112" y="52" width="288" height="408" rx="6" fill="#FFFFFF"/>
+      <rect x="112" y="52" width="288" height="78" fill="#D7261E"/>
+      <text x="256" y="112" text-anchor="middle" font-family="'Dela Gothic One','Hiragino Sans','Noto Sans JP',sans-serif" font-size="52" font-weight="900" fill="#FFFFFF">指名手配</text>
+      <circle cx="256" cy="264" r="62" fill="#1A1A1A"/>
+      <circle cx="210" cy="222" r="30" fill="#1A1A1A"/><circle cx="244" cy="200" r="30" fill="#1A1A1A"/>
+      <circle cx="282" cy="204" r="30" fill="#1A1A1A"/><circle cx="310" cy="232" r="26" fill="#1A1A1A"/>
+      <circle cx="200" cy="256" r="24" fill="#1A1A1A"/>
+      <path d="M160 392 Q256 316 352 392 L352 404 L160 404Z" fill="#1A1A1A"/>
+    </g>
+    <g transform="rotate(-24 256 256)">
+      <rect x="-80" y="318" width="672" height="96" fill="#FFD400"/>
+      <path d="M-80 318h36l-36 96z M0 318h36l-36 96h-36z M80 318h36l-36 96h-36z M440 318h36l-36 96h-36z M520 318h36l-36 96h-36z M600 318h36l-36 96h-36z" fill="#1A1A1A"/>
+      <text x="256" y="392" text-anchor="middle" font-family="'Dela Gothic One','Arial Black',sans-serif" font-size="70" font-weight="900" fill="#1A1A1A" letter-spacing="4">ほのか</text>
+    </g>
+  </g>
+</svg>

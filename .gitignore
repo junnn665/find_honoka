@@ -1,0 +1,7 @@
+# 元の写真・切り抜きは絶対にリポジトリに入れない
+private/
+*.jpg
+*.jpeg
+*.png
+!icon-*.png
+*.heic
