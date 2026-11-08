@@ -549,18 +549,18 @@ function afterUnlock() {
 const FILTERS = { none: '', gray: 'grayscale(1) contrast(1.1)', sepia: 'sepia(.85) contrast(1.05)', cool: 'saturate(.4) hue-rotate(190deg) brightness(1.05)' };
 function levelSpec(level) {
   const L = [null,
-    { n: 4, motion: 'grid' }, { n: 9, motion: 'grid' }, { n: 16, motion: 'grid' },
-    { n: 18, motion: 'scatter' }, { n: 18, motion: 'drift', speed: 0.6 }, { n: 22, motion: 'rows', speed: 0.8 },
-    { n: 24, motion: 'drift', speed: 0.9, filter: 'gray' }, { n: 26, motion: 'ring', speed: 0.9 }, { n: 28, motion: 'rain', speed: 1, filter: 'sepia' }];
+    { n: 6, motion: 'grid' }, { n: 12, motion: 'grid' }, { n: 20, motion: 'grid' },
+    { n: 22, motion: 'scatter' }, { n: 24, motion: 'drift', speed: 0.75 }, { n: 26, motion: 'rows', speed: 0.9 },
+    { n: 28, motion: 'drift', speed: 1, filter: 'gray' }, { n: 30, motion: 'ring', speed: 1 }, { n: 32, motion: 'rain', speed: 1.1, filter: 'sepia' }];
   if (level < L.length) return L[level];
   // レベル10からは上限なしに近い形で難しくなり続け、節目ごとに新しい仕掛けが増える
   const d = level - 9;
   return {
-    n: Math.min(28 + d * 2, 70), motion: null, speed: Math.min(1 + d * 0.07, 2.8), filter: null,
-    spin: Math.min(0.9, 0.35 + d * 0.03),
-    blink: level >= 16,      // 顔が点滅する
-    sizeVar: level >= 19,    // 顔の大きさがバラバラ
-    shuffle: level >= 22,    // 顔がワープする盤面が出る
+    n: Math.min(32 + d * 3, 72), motion: null, speed: Math.min(1.1 + d * 0.09, 3), filter: null,
+    spin: Math.min(0.95, 0.45 + d * 0.04),
+    blink: level >= 13,      // 顔が点滅する
+    sizeVar: level >= 16,    // 顔の大きさがバラバラ
+    shuffle: level >= 19,    // 顔がワープする盤面が出る
   };
 }
 // 特殊ラウンド：double＝ほのかが2人／upside＝全員さかさま／zoom＝手配書が一部だけ
@@ -568,18 +568,18 @@ const SPECIALS = ['double', 'upside', 'zoom'];
 const SPECIAL_TEXT = { double: 'ほのかが2人いる！両方つかまえろ', upside: '全員さかさま！', zoom: '手配書は顔の一部だけ！' };
 // ボス面：ひとりで遊ぶは5レベルごと、対戦は最終ラウンド
 const isBossLevel = (level) => level >= 5 && level % 5 === 0;
-function bossSpec(level) { return { n: Math.min(44 + Math.floor(level / 5) * 3, 70), motion: null, speed: Math.min(1.6 + level * 0.03, 3), filter: 'none', spin: true, blink: level >= 20, sizeVar: level >= 20, shuffle: level >= 25 }; }
+function bossSpec(level) { return { n: Math.min(44 + Math.floor(level / 5) * 3, 70), motion: null, speed: Math.min(1.7 + level * 0.035, 3.2), filter: 'none', spin: true, blink: level >= 15, sizeVar: level >= 15, shuffle: level >= 20 }; }
 function makeStage(seed, level, special, boss) {
   const r = mulberry32(seed);
   if (boss === undefined) boss = isBossLevel(level);
   const spec = boss ? bossSpec(level) : levelSpec(level);
-  let sp = boss ? null : special !== undefined ? special : (level >= 4 && level % 3 === 1 ? pick(r, SPECIALS) : null);
+  let sp = boss ? null : special !== undefined ? special : ((level >= 4 && level < 13 && level % 3 === 1) || (level >= 13 && level % 2 === 1) ? pick(r, SPECIALS) : null);
   if (sp === 'double' && FACES.length < 2) sp = 'upside';
   const motion = spec.motion || pick(r, (boss ? ['drift', 'ring', 'rows', 'rain'] : ['drift', 'rows', 'ring', 'rain', 'scatter', 'drift']).concat(spec.shuffle ? ['shuffle', 'shuffle'] : []));
   const filter = spec.filter || (spec.filter === null ? pick(r, ['none', 'none', 'gray', 'sepia', 'cool']) : 'none');
   const speed = spec.speed || 1, n = spec.n;
   const targetCrop = rint(r, 0, FACES.length - 1);
-  const posterCrop = level >= 6 && FACES.length > 1 && r() < Math.min(0.85, 0.4 + level * 0.02) ? (targetCrop + rint(r, 1, FACES.length - 1)) % FACES.length : targetCrop;
+  const posterCrop = level >= 5 && FACES.length > 1 && r() < Math.min(0.9, 0.5 + level * 0.025) ? (targetCrop + rint(r, 1, FACES.length - 1)) % FACES.length : targetCrop;
   // ほかの顔はなるべく偏らないように順番に配る
   const order = DECOYS.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -772,7 +772,7 @@ const Intro = {
     setPoster($('intro-face'), st);
     $('intro-nm').textContent = st.special === 'double' ? 'ほのか ×2' : 'ほのか';
     $('intro-cap').textContent = cap || '';
-    const NOTE = { 16: 'ここから顔が点滅しはじめる！', 19: 'ここから顔の大きさがバラバラに！', 22: 'ここから顔がワープしはじめる！' };
+    const NOTE = { 13: 'ここから顔が点滅しはじめる！', 16: 'ここから顔の大きさがバラバラに！', 19: 'ここから顔がワープしはじめる！' };
     $('intro-sub').textContent = st.boss ? 'ボス面！ 顔が大量に高速で動く' : st.special ? SPECIAL_TEXT[st.special] : NOTE[st.level] || (st.motion === 'shuffle' ? '顔がワープする！' : '');
     el.classList.remove('fly'); p.style.transition = 'none'; p.style.transform = 'rotate(-2deg) scale(.6)'; p.style.opacity = '0';
     el.classList.add('on');
@@ -866,7 +866,7 @@ const Solo = {
       this.paused = true; sfx.ok();
       // 後半ほど、もらえる秒数が少なくなる
       const boss = Stage.st.boss, lv = Stage.st.level;
-      const bonus = boss ? (lv >= 20 ? 8000 : BOSS_BONUS_MS) : (lv < 10 ? BONUS_MS : lv < 20 ? 4000 : 3000);
+      const bonus = boss ? (lv >= 20 ? 7000 : BOSS_BONUS_MS) : (lv < 6 ? BONUS_MS : lv < 12 ? 4000 : lv < 20 ? 3000 : 2500);
       Dex.addStage(Stage.st);
       this.time = Math.min(this.time + bonus, MAX_MS);
       Stage.reveal('確保'); setTimeout(sfx.stamp, 220);
@@ -1062,8 +1062,8 @@ const Online = {
     // ボス面は10ラウンドごとの区切り（最終ラウンドを含む）、特殊ラウンドは3ラウンドごと
     const boss = r === N - 1 || r % 10 === 9;
     const special = !boss && r % 3 === 2 ? SPECIALS[(seed + r) % SPECIALS.length] : null;
-    // 難しさはラウンド数に合わせて上げる（最後のラウンドは 10→レベル17、20→23、30→28 相当）
-    const maxL = 12 + N * 0.55;
+    // 難しさはラウンド数に合わせて上げる（最後のラウンドは 10→レベル20、20→26、30→32 相当）
+    const maxL = 14 + N * 0.6;
     const level = 2 + Math.round(r * (maxL - 2) / Math.max(1, N - 1));
     return makeStage((seed + r * 7919) >>> 0, level, special, boss);
   },
