@@ -551,25 +551,28 @@ function levelSpec(level) {
     { n: 18, motion: 'scatter' }, { n: 18, motion: 'drift', speed: 0.6 }, { n: 22, motion: 'rows', speed: 0.8 },
     { n: 24, motion: 'drift', speed: 0.9, filter: 'gray' }, { n: 26, motion: 'ring', speed: 0.9 }, { n: 28, motion: 'rain', speed: 1, filter: 'sepia' }];
   if (level < L.length) return L[level];
-  return { n: Math.min(28 + (level - 9) * 2, 46), motion: null, speed: Math.min(1 + (level - 9) * 0.07, 1.8), filter: null, spin: true };
+  // レベル10からは上限なしに近い形で難しくなり続ける（顔が増える・速くなる・小さくなる・色が変わりやすくなる）
+  const d = level - 9;
+  return { n: Math.min(28 + d * 3, 64), motion: null, speed: Math.min(1 + d * 0.1, 3), filter: null, spin: true, scale: Math.max(0.6, 1 - d * 0.025), colorful: Math.min(0.85, 0.4 + d * 0.03) };
 }
 // 特殊ラウンド：double＝ほのかが2人／upside＝全員さかさま／zoom＝手配書が一部だけ
 const SPECIALS = ['double', 'upside', 'zoom'];
 const SPECIAL_TEXT = { double: 'ほのかが2人いる！両方つかまえろ', upside: '全員さかさま！', zoom: '手配書は顔の一部だけ！' };
 // ボス面：ひとりで遊ぶは5レベルごと、対戦は最終ラウンド
 const isBossLevel = (level) => level >= 5 && level % 5 === 0;
-function bossSpec(level) { return { n: Math.min(44 + Math.floor(level / 5) * 2, 54), motion: null, speed: Math.min(1.6 + level * 0.02, 2.2), filter: 'none', spin: true }; }
+function bossSpec(level) { return { n: Math.min(44 + Math.floor(level / 5) * 3, 70), motion: null, speed: Math.min(1.6 + level * 0.04, 3.2), filter: 'none', spin: true, scale: Math.max(0.65, 1 - level * 0.01) }; }
 function makeStage(seed, level, special, boss) {
   const r = mulberry32(seed);
   if (boss === undefined) boss = isBossLevel(level);
   const spec = boss ? bossSpec(level) : levelSpec(level);
-  let sp = boss ? null : special !== undefined ? special : (level >= 4 && level % 3 === 1 ? pick(r, SPECIALS) : null);
+  let sp = boss ? null : special !== undefined ? special : ((level >= 4 && level < 13 && level % 3 === 1) || (level >= 13 && level % 2 === 1) ? pick(r, SPECIALS) : null);
   if (sp === 'double' && FACES.length < 2) sp = 'upside';
   const motion = spec.motion || pick(r, boss ? ['drift', 'ring', 'rows', 'rain'] : ['drift', 'rows', 'ring', 'rain', 'scatter', 'drift']);
-  const filter = spec.filter || (spec.filter === null ? pick(r, ['none', 'none', 'gray', 'sepia', 'cool']) : 'none');
+  const filter = spec.filter || (spec.filter === null ? (r() < (spec.colorful || 0.4) ? pick(r, ['gray', 'sepia', 'cool']) : 'none') : 'none');
   const speed = spec.speed || 1, n = spec.n;
   const targetCrop = rint(r, 0, FACES.length - 1);
-  const posterCrop = level >= 6 && FACES.length > 1 && r() < 0.5 ? (targetCrop + rint(r, 1, FACES.length - 1)) % FACES.length : targetCrop;
+  // 手配書とちがう写真のほのかが出る確率は、レベルが上がるほど高くなる
+  const posterCrop = level >= 6 && FACES.length > 1 && r() < Math.min(0.9, 0.5 + (level - 6) * 0.03) ? (targetCrop + rint(r, 1, FACES.length - 1)) % FACES.length : targetCrop;
   // ほかの顔はなるべく偏らないように順番に配る
   const order = DECOYS.map((_, i) => i);
   for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
@@ -597,7 +600,7 @@ function makeStage(seed, level, special, boss) {
   const focus = sp === 'zoom' ? { x: rint(r, 35, 65), y: rint(r, 34, 58) } : null;
   const rowsN = Math.max(3, Math.round(Math.sqrt(n / 1.4)));
   items.forEach((it, i) => { it.row = i % rowsN; it.rows = rowsN; it.ring = i % 3; });
-  return { level, motion, filter, speed, items, target, targets, posterCrop: sp === 'zoom' ? targetCrop : posterCrop, special: sp, focus, boss };
+  return { level, motion, filter, speed, scale: spec.scale || 1, items, target, targets, posterCrop: sp === 'zoom' ? targetCrop : posterCrop, special: sp, focus, boss };
 }
 
 // 手配書の写真（ズームラウンドは一部だけ）
@@ -621,6 +624,7 @@ const Stage = {
     const W = field.clientWidth, H = field.clientHeight, n = st.items.length;
     if (st.motion === 'grid') { const cols = Math.ceil(Math.sqrt(n * W / H)); const rows = Math.ceil(n / cols); this.size = Math.min(W / cols, H / rows) * 0.8; }
     else this.size = Math.max(46, Math.min(116, Math.sqrt(W * H / n) * 0.64));
+    if (st.motion !== 'grid') this.size = Math.max(36, this.size * (st.scale || 1)); // 小さくしすぎるとタップできないので36pxまで
     const filt = FILTERS[st.filter] || '';
     st.items.forEach((it, i) => {
       const el = document.createElement('div');
@@ -846,11 +850,12 @@ const Solo = {
     if (Stage.isTarget(i)) {
       if (!Stage.catch(i, el)) return;
       this.paused = true; sfx.ok();
-      const boss = Stage.st.boss, bonus = boss ? BOSS_BONUS_MS : BONUS_MS;
+      // 見つけたときに増える時間は、レベルが上がるほど少なくなる（最低2秒）
+      const boss = Stage.st.boss, bonus = boss ? BOSS_BONUS_MS : Math.max(2000, BONUS_MS - Math.max(0, this.level - 5) * 200);
       Dex.addStage(Stage.st);
       this.time = Math.min(this.time + bonus, MAX_MS);
       Stage.reveal('確保'); setTimeout(sfx.stamp, 220);
-      banner(boss ? 'ボス撃破！' : '', `+${bonus / 1000}秒`);
+      banner(boss ? 'ボス撃破！' : '', `+${(bonus / 1000).toFixed(1).replace(/\.0$/, '')}秒`);
       this.level++;
       setTimeout(() => { if (this.on) this.next(); }, 1400);
     } else {
@@ -1041,7 +1046,7 @@ const Online = {
     const N = this.rounds(), last = r === N - 1;
     // 3ラウンドごとに特殊ラウンド、最後はボス。難しさは何ラウンドでも最後に同じくらいになるよう伸ばす
     const special = !last && r % 3 === 2 ? SPECIALS[(seed + r) % SPECIALS.length] : null;
-    return makeStage((seed + r * 7919) >>> 0, 2 + Math.round(r * 12 / (N - 1)), special, last);
+    return makeStage((seed + r * 7919) >>> 0, 2 + Math.round(r * 18 / (N - 1)), special, last);
   },
   showReveal(p) {
     if (this.revealed === p.r) return;

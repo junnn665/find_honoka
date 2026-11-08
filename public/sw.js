@@ -1,6 +1,6 @@
 // 一度開けば、通信がなくても「ひとりで遊ぶ」ができるようにする
 // 自分のサイトのファイルは「通信を優先、だめなら保存分」（更新がすぐ届くように）
-const CACHE = 'honoka-v2';
+const CACHE = 'honoka-v3';
 const FILES = ['./', 'index.html', 'og.png', 'faces.enc.json', 'qrcode.min.js', 'manifest.webmanifest', 'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
