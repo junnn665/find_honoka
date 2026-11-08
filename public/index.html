@@ -340,6 +340,7 @@ h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(30px,9vw,
 <section class="screen" id="s-join">
   <h1>部屋番号</h1>
   <div class="stack">
+    <input class="field slim" type="text" id="join-name" placeholder="あなたのなまえ" maxlength="10" aria-label="あなたのなまえ">
     <input class="field" type="tel" id="join-code" placeholder="4ケタの数字" maxlength="4" inputmode="numeric" style="font-family:var(--display);font-size:28px;letter-spacing:.2em">
     <button class="btn go" id="join-go">参加する</button>
     <button class="btn line" id="join-back">もどる</button>
@@ -355,10 +356,11 @@ h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(30px,9vw,
     <div id="qr"></div>
     <div class="row" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn sm" id="share">招待リンクを送る</button><button class="btn sm" id="lobby-friends">フレンドを招待</button></div>
     <div class="seg" id="mode-seg"><button data-mode="solo">個人戦</button><button data-mode="team">チーム戦</button></div>
+    <div class="seg" id="rounds-seg"><button data-n="10">10回</button><button data-n="20">20回</button><button data-n="30">30回</button></div>
     <div class="plist" id="lobby-list"></div>
     <button class="btn sm" id="team-btn">チームを変える</button>
     <div class="meta" id="lobby-msg"></div>
-    <button class="btn go" id="start">スタート（全10ラウンド）</button>
+    <button class="btn go" id="start">スタート</button>
     <button class="btn line" id="leave">部屋を出る</button>
   </div>
   <p class="note">通信で送るのは、なまえと勝ち負けだけです。写真はそれぞれのスマホの中で、合言葉を使って開いています。</p>
@@ -532,7 +534,8 @@ function afterUnlock() {
   setTimeout(() => Friends.start(), 800);
   $('lock-err').textContent = '';
   $('title-face').src = FACES[0];
-  $('name').value = ls.get('vv_name') || '';
+  $('name').value = validName(ls.get('vv_name')) ? ls.get('vv_name') : '';
+  $('join-name').value = $('name').value;
   showBest();
   show('s-title');
   const room = (new URLSearchParams(location.search).get('room') || '').replace(/\D/g, '');
@@ -868,7 +871,7 @@ const Solo = {
       $('res-title').textContent = isBest ? '自己ベスト更新' : 'けっか';
       $('res-body').innerHTML = `<div class="me"><span>確保できた回数</span><b>${score}</b></div><div><span>自己ベスト</span><b>${best}</b></div>`;
       $('res-msg').textContent = '';
-      $('res-again').style.display = ''; $('res-again').onclick = () => Solo.start();
+      $('res-again').style.display = ''; $('res-again').onclick = () => { if (requireName()) Solo.start(); };
       show('s-result');
     }, 2400);
   },
@@ -889,7 +892,7 @@ const FIREBASE_CONFIG = {
 };
 const FIREBASE_VER = '10.12.2';
 const RKEY = (c) => `rooms/honoka-${c}`;
-const ROUNDS = 10, ROUND_MS = 25000, GAP_MS = 3400, INTRO_MS = 1700, LOCK_MS = 1500, JAM_MS = 3500;
+const ROUND_CHOICES = [10, 20, 30], ROUND_MS = 25000, GAP_MS = 3400, INTRO_MS = 1700, LOCK_MS = 1500, JAM_MS = 3500;
 const PID = (() => { const q = new URLSearchParams(location.search).get('pid'); if (q) return q; let p = ls.get('vv_pid'); if (!p) { p = Math.random().toString(36).slice(2, 10) + Date.now().toString(36); ls.set('vv_pid', p); } return p; })();
 let NET = null, netP = null;
 function loadScript(src) { return new Promise((ok, ng) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ng; document.head.appendChild(s); }); }
@@ -927,6 +930,18 @@ function ensureNet() {
   return netP;
 }
 const myName = () => ($('name').value.trim() || ls.get('vv_name') || 'ななし').slice(0, 10);
+// なまえが空（または「ななし」）のままでは遊べないようにする
+function validName(n) { return !!n && n !== 'ななし'; }
+function requireName() {
+  const n = $('name').value.trim().slice(0, 10);
+  if (validName(n)) { ls.set('vv_name', n); return true; }
+  toast('なまえを入れてください');
+  const onJoin = document.querySelector('#s-join.on');
+  if (!onJoin) show('s-title');
+  const el = onJoin ? $('join-name') : $('name');
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); el.focus();
+  return false;
+}
 
 const Online = {
   code: null, room: null, unsub: null, g: 0, mounted: -1, revealed: -1, introFor: -1, lockUntil: 0, iv: 0, resultShown: 0,
@@ -977,6 +992,7 @@ const Online = {
   wins() { const v = this.room; return (v && v.w && v.w['g' + v.g]) || {}; },
   score() { const s = {}; for (const w of Object.values(this.wins())) if (w && w.pid) s[w.pid] = (s[w.pid] || 0) + 1; return s; },
   isTeam() { return !!this.room && this.room.mode === 'team'; },
+  rounds() { const n = this.room && +this.room.rounds; return ROUND_CHOICES.includes(n) ? n : 10; },
   teamOf(pid) { const p = this.room && this.room.players && this.room.players[pid]; return (p && p.team) || 'A'; },
   teamScore() { const s = this.score(), t = { A: 0, B: 0 }; for (const [pid, n] of Object.entries(s)) t[this.teamOf(pid)] += n; return t; },
   update() {
@@ -988,9 +1004,12 @@ const Online = {
     $('start').style.display = isHost ? '' : 'none';
     $('mode-seg').style.display = isHost ? '' : 'none';
     $('mode-seg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.mode === (v.mode || 'solo')));
+    $('rounds-seg').style.display = isHost ? '' : 'none';
+    $('rounds-seg').querySelectorAll('button').forEach((b) => b.classList.toggle('on', +b.dataset.n === this.rounds()));
+    $('start').textContent = `スタート（全${this.rounds()}ラウンド）`;
     $('team-btn').style.display = team ? '' : 'none';
     if (hostData !== dataId() && !this.warned) { this.warned = true; toast('写真データがホストとちがいます。ページを再読み込みしてください'); }
-    $('lobby-msg').textContent = isHost ? (ps.length < 2 ? '友だちが入るのを待っています。ひとりでも始められます' : `${ps.length}人そろいました`) : 'ホストがスタートするのを待っています';
+    $('lobby-msg').textContent = isHost ? (ps.length < 2 ? '友だちが入るのを待っています。ひとりでも始められます' : `${ps.length}人そろいました`) : `ホストがスタートするのを待っています（全${this.rounds()}ラウンド）`;
     if (v.state === 'playing' && v.g !== this.g) { this.g = v.g; this.mounted = -1; this.revealed = -1; this.introFor = -1; this.lockUntil = 0; show('game'); }
     if (v.state === 'playing') this.drawScore();
   },
@@ -1007,19 +1026,22 @@ const Online = {
   where() {
     const v = this.room, w = this.wins();
     let start = v.startAt, prev = null;
-    for (let r = 0; r < ROUNDS; r++) {
+    const N = this.rounds();
+    for (let r = 0; r < N; r++) {
       const win = w['r' + r];
       if (!win) return { r, start, prev };
       prev = { r, start, win };
-      if (r === ROUNDS - 1) return { r: ROUNDS, done: true, prev };
+      if (r === N - 1) return { r: N, done: true, prev };
       start = Math.max(win.t, start) + GAP_MS;
     }
-    return { r: ROUNDS, done: true, prev };
+    return { r: N, done: true, prev };
   },
   stageFor(r) {
     const seed = this.room.seed >>> 0;
-    const special = [2, 5, 8].includes(r) ? SPECIALS[(seed + r) % SPECIALS.length] : null;
-    return makeStage((seed + r * 7919) >>> 0, 2 + Math.round(r * 1.3), special, r === ROUNDS - 1);
+    const N = this.rounds(), last = r === N - 1;
+    // 3ラウンドごとに特殊ラウンド、最後はボス。難しさは何ラウンドでも最後に同じくらいになるよう伸ばす
+    const special = !last && r % 3 === 2 ? SPECIALS[(seed + r) % SPECIALS.length] : null;
+    return makeStage((seed + r * 7919) >>> 0, 2 + Math.round(r * 12 / (N - 1)), special, last);
   },
   showReveal(p) {
     if (this.revealed === p.r) return;
@@ -1040,7 +1062,7 @@ const Online = {
     const now = NET.now();
     const { r, start, prev, done } = this.where();
     const showingPrev = prev && (done || now < start - INTRO_MS);
-    $('lvl').textContent = `ラウンド ${showingPrev ? prev.r + 1 : r + 1}/${ROUNDS}`;
+    $('lvl').textContent = `ラウンド ${showingPrev ? prev.r + 1 : r + 1}/${this.rounds()}`;
     if (done) {
       this.showReveal(prev);
       if (now > prev.win.t + GAP_MS - 600 && this.resultShown !== this.g) { this.resultShown = this.g; this.result(); }
@@ -1356,7 +1378,7 @@ const Friends = {
       if (Online.code === String(inv.code)) return;
       if (Online.code) await Online.leave();
       this.add(from, inv.name);
-      ls.set('vv_name', myName());
+      if (!requireName()) return;
       Online.join(String(inv.code));
     };
   },
@@ -1364,7 +1386,7 @@ const Friends = {
     if (!(await ensureNet())) return toast('通信できませんでした');
     if (btn) btn.disabled = true;
     try {
-      if (!Online.code) { ls.set('vv_name', myName()); await Online.create(); }
+      if (!Online.code) { if (!requireName()) return; await Online.create(); }
       if (!Online.code) return;
       await NET.set(`${INVITES}/${f.pid}/${PID}`, { name: myName(), code: Online.code, t: NET.now() });
       toast(`${f.name} に招待を送りました（部屋 ${Online.code}）`);
@@ -1680,8 +1702,11 @@ $('unlock').onclick = unlock;
 $('pass').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) unlock(); });
 $('pass').addEventListener('input', () => { $('lock-err').textContent = ''; });
 $('name').addEventListener('change', () => ls.set('vv_name', $('name').value.trim().slice(0, 10)));
-$('go-solo').onclick = () => Solo.start();
+$('name').addEventListener('input', () => { $('join-name').value = $('name').value; });
+$('join-name').addEventListener('input', () => { $('name').value = $('join-name').value; });
+$('go-solo').onclick = () => { if (requireName()) Solo.start(); };
 $('go-versus').onclick = () => {
+  if (!requireName()) return;
   const m = Modal.open(`<h2>対戦する</h2><div class="stack"><button class="btn go" data-a="create">部屋をつくる</button><button class="btn" data-a="join">部屋番号で参加</button><button class="btn" data-a="fr">フレンドを招待する</button><button class="btn line" data-a="x">とじる</button></div>`);
   m.onclick = (e) => {
     const a = e.target.closest('button') && e.target.closest('button').dataset.a; if (!a) return;
@@ -1706,10 +1731,11 @@ $('go-settings').onclick = () => {
   };
 };
 $('join-back').onclick = () => show('s-title');
-$('join-go').onclick = () => { ls.set('vv_name', myName()); Online.join($('join-code').value.trim()); };
+$('join-go').onclick = () => { if (requireName()) Online.join($('join-code').value.trim()); };
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join-go').click(); });
 $('start').onclick = () => Online.start();
 $('mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => NET.update(RKEY(Online.code), { mode: b.dataset.mode }); });
+$('rounds-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => NET.update(RKEY(Online.code), { rounds: +b.dataset.n }); });
 $('team-btn').onclick = () => NET.update(`${RKEY(Online.code)}/players/${PID}`, { team: Online.teamOf(PID) === 'A' ? 'B' : 'A' });
 $('go-dex').onclick = () => Dex.open();
 $('dex-back').onclick = () => { showBest(); show('s-title'); };
